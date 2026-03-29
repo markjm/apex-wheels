@@ -168,7 +168,7 @@ def install_network(version: str) -> str:
 
     major_minor = ".".join(version.split(".")[:2])
     mm_dash = major_minor.replace(".", "-")
-    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash} libnccl-dev")
+    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash} libnccl-dev libcudnn-dev")
 
     cuda_path = "/usr/local/cuda"
     if not os.path.isdir(cuda_path):
