@@ -177,6 +177,51 @@ def install_network(version: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Local (.run) install
+# ---------------------------------------------------------------------------
+
+
+def _find_run_installer_url(version: str) -> str:
+    """Find the .run installer URL by checking NVIDIA's md5sum manifest."""
+    md5_url = f"https://developer.download.nvidia.com/compute/cuda/{version}/docs/sidebar/md5sum.txt"
+    text = _fetch_text(md5_url)
+
+    arch = platform.machine()
+    if arch in ("x86_64", "amd64"):
+        suffix = "_linux.run"
+    elif arch == "aarch64":
+        suffix = "_linux_sbsa.run"
+    else:
+        raise RuntimeError(f"Unsupported architecture: {arch}")
+
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            fname = parts[-1]
+            if fname.endswith(suffix):
+                return f"https://developer.download.nvidia.com/compute/cuda/{version}/local_installers/{fname}"
+
+    raise RuntimeError(f"Could not find .run installer for CUDA {version} ({suffix})")
+
+
+def install_local(version: str) -> str:
+    """Download and run the CUDA .run installer."""
+    url = _find_run_installer_url(version)
+    print(f"[setup-cuda] Downloading {url} ...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        local_run = os.path.join(tmpdir, f"cuda_{version}_linux.run")
+        urllib.request.urlretrieve(url, local_run)
+        os.chmod(local_run, 0o755)
+        _sudo(f"sh {local_run} --silent --override --toolkit")
+
+    cuda_path = "/usr/local/cuda"
+    if not os.path.isdir(cuda_path):
+        raise RuntimeError(f"CUDA install succeeded but {cuda_path} not found")
+    return cuda_path
+
+
+# ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
 
@@ -242,13 +287,33 @@ def set_env(cuda_path: str, version: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Install NVIDIA CUDA toolkit")
     parser.add_argument("version", help="CUDA version, e.g. 12.8 or 12.8.0")
+    parser.add_argument(
+        "--method",
+        choices=("auto", "network", "local"),
+        default="auto",
+        help="Install method (default: auto — tries network, falls back to local)",
+    )
     args = parser.parse_args()
 
-    print(f"[setup-cuda] Requested CUDA {args.version}")
+    print(f"[setup-cuda] Requested CUDA {args.version}, method={args.method}")
     version = resolve_version(args.version)
     print(f"[setup-cuda] Resolved to CUDA {version}")
 
-    cuda_path = install_network(version)
+    cuda_path: str | None = None
+
+    if args.method == "network":
+        cuda_path = install_network(version)
+    elif args.method == "local":
+        cuda_path = install_local(version)
+    else:
+        try:
+            cuda_path = install_network(version)
+        except Exception as exc:
+            print(f"[setup-cuda] Network install failed: {exc}", file=sys.stderr)
+            print(
+                "[setup-cuda] Falling back to local .run installer ...", file=sys.stderr
+            )
+            cuda_path = install_local(version)
 
     set_env(cuda_path, version)
 
