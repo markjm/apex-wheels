@@ -100,12 +100,9 @@ fi
 export APEX_VERSION="${APEX_BASE_VERSION}+${LOCAL_VERSION_LABEL}"
 echo "Wheel version: $APEX_VERSION  (apex commit: $APEX_SHORT_SHA)"
 
-# Apply patches from patches/ — makes setup.py read APEX_VERSION env var
-for patch in "$SCRIPT_DIR"/patches/*.patch; do
-  [ -f "$patch" ] || continue
-  echo "Applying patch: $(basename "$patch")"
-  git -C apex apply "$patch"
-done
+# Patch setup.py so it reads the version from $APEX_VERSION
+sed -i 's/version="0\.1"/version=os.environ.get("APEX_VERSION", "0.1")/' apex/setup.py
+grep -q 'APEX_VERSION' apex/setup.py || { echo "ERROR: version patch did not apply"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Determine build parallelism from system resources
