@@ -1,0 +1,138 @@
+name: "Build and Upload Apex Wheels"
+description: "Build, smoke-test, and upload NVIDIA Apex wheels"
+
+inputs:
+  python-version:
+    description: "Python version (e.g. 3.12)"
+    required: true
+  torch-version:
+    description: "PyTorch version (e.g. 2.9.1)"
+    required: true
+  cuda-version:
+    description: "CUDA toolkit version (e.g. 12.8)"
+    required: true
+  apex-commit:
+    description: "Apex git ref to build (default: master)"
+    required: false
+    default: "master"
+  is-upload:
+    description: "Whether to upload the wheel to the GitHub release"
+    required: false
+    default: "true"
+
+outputs:
+  wheel-path:
+    description: "Path to the built wheel"
+    value: ${{ steps.build_wheels.outputs.WHEEL_PATH }}
+  wheel-path-manylinux:
+    description: "Path to the manylinux-repaired wheel"
+    value: ${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Maximize build space
+      shell: bash
+      run: |
+        df -h
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h
+
+    - name: Install OS build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build clang time patchelf
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install Python
+      shell: bash
+      run: |
+        uv venv -p ${{ inputs.python-version }}
+        uv pip install -U pip "setuptools>=75" wheel packaging ninja auditwheel patchelf
+        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+
+    - name: Setup CUDA
+      shell: bash
+      run: |
+        python scripts/setup_cuda.py ${{ inputs.cuda-version }}
+
+    - name: Build wheels
+      id: build_wheels
+      shell: bash
+      run: |
+        chmod +x build_linux.sh
+        ./build_linux.sh \
+          ${{ inputs.python-version }} \
+          ${{ inputs.torch-version }} \
+          ${{ inputs.cuda-version }} \
+          ${{ inputs.apex-commit }}
+        wheel_path=$(ls apex/dist/*.whl | head -n 1)
+        echo "WHEEL_PATH=$wheel_path" >> $GITHUB_OUTPUT
+
+    - name: Smoke-test install
+      shell: bash
+      run: |
+        pip install --no-cache-dir ${{ steps.build_wheels.outputs.WHEEL_PATH }}
+        python -c "import apex; print('apex imported successfully')"
+        python -c "
+        try:
+            import amp_C; print('amp_C loaded')
+        except ImportError:
+            print('amp_C not available (python-only build)')
+        "
+
+    - name: Upload release asset
+      if: ${{ inputs.is-upload == 'true' }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        tag_name=${{ github.ref_name }}
+        wheel_path="${{ steps.build_wheels.outputs.WHEEL_PATH }}"
+        if [ ! -f "$wheel_path" ]; then
+          echo "Error: wheel not found at $wheel_path"
+          exit 1
+        fi
+        gh release upload "$tag_name" "$wheel_path" --clobber
+
+    - name: Apply auditwheel repair
+      continue-on-error: true
+      id: auditwheel_repair
+      shell: bash
+      run: |
+        DIST_MANYLINUX_DIR="apex/dist_manylinux"
+        mkdir -p "$DIST_MANYLINUX_DIR"
+        auditwheel show ${{ steps.build_wheels.outputs.WHEEL_PATH }}
+        auditwheel repair \
+          --exclude libc10* --exclude libtorch* --exclude libcu* --exclude libnv* --exclude 'libtorch*' \
+          ${{ steps.build_wheels.outputs.WHEEL_PATH }} -w "$DIST_MANYLINUX_DIR"
+        wheel_path_manylinux=$(ls "$DIST_MANYLINUX_DIR"/*manylinux*.whl 2>/dev/null | head -n 1 || echo "")
+        echo "WHEEL_PATH_MANYLINUX=$wheel_path_manylinux" >> $GITHUB_OUTPUT
+
+    - name: Test manylinux wheel
+      continue-on-error: true
+      shell: bash
+      run: |
+        ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
+        if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
+          pip install --force-reinstall --no-cache-dir "$ml_wheel"
+          python -c "import apex; print('manylinux wheel OK')"
+        fi
+
+    - name: Upload manylinux wheel
+      if: ${{ inputs.is-upload == 'true' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        tag_name=${{ github.ref_name }}
+        ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
+        if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
+          gh release upload "$tag_name" "$ml_wheel" --clobber
+        else
+          echo "Skipping manylinux upload: file not found"
+        fi

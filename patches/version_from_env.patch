@@ -1,0 +1,11 @@
+--- a/setup.py
++++ b/setup.py
+@@ -1049,7 +1049,7 @@
+ 
+ setup(
+     name="apex",
+-    version="0.1",
++    version=os.environ.get("APEX_VERSION", "0.1"),
+     packages=find_packages(
+         exclude=(
+             "build",
