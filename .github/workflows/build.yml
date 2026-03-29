@@ -56,7 +56,7 @@ jobs:
       && needs.resolve_apex_ref.result == 'success'
       && fromjson(needs.create_matrix.outputs.matrix).linux
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    timeout-minutes: 240
     env:
       DEBIAN_FRONTEND: noninteractive
       TERM: xterm-256color
