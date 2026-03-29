@@ -39,15 +39,34 @@ jobs:
           python3 -m scripts.coverage_matrix matrix | tee /tmp/matrix.json
           echo "matrix=$(cat /tmp/matrix.json)" >> $GITHUB_OUTPUT
 
+  # Derive the Apex git ref: workflow_dispatch input takes priority,
+  # otherwise strip the leading "v" from the tag name (v25.09 → 25.09).
+  resolve_apex_ref:
+    name: Resolve Apex ref
+    runs-on: ubuntu-latest
+    outputs:
+      apex-commit: ${{ steps.resolve.outputs.apex-commit }}
+    steps:
+      - name: Resolve
+        id: resolve
+        run: |
+          if [[ -n "${{ inputs.apex-commit }}" ]]; then
+            echo "apex-commit=${{ inputs.apex-commit }}" >> "$GITHUB_OUTPUT"
+          else
+            ref="${{ github.ref_name }}"
+            echo "apex-commit=${ref#v}" >> "$GITHUB_OUTPUT"
+          fi
+
   # -------------------------------------------------------------------
   # Linux x86_64 builds
   # -------------------------------------------------------------------
   build_wheels_linux:
     name: "py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-cu${{ matrix.cuda-version }}"
-    needs: [create_release, create_matrix]
+    needs: [create_release, create_matrix, resolve_apex_ref]
     if: |
       always()
       && needs.create_matrix.result == 'success'
+      && needs.resolve_apex_ref.result == 'success'
       && fromjson(needs.create_matrix.outputs.matrix).linux
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -69,5 +88,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
           torch-version: ${{ matrix.torch-version }}
           cuda-version: ${{ matrix.cuda-version }}
-          apex-commit: ${{ inputs.apex-commit || 'master' }}
+          apex-commit: ${{ needs.resolve_apex_ref.outputs.apex-commit }}
           is-upload: ${{ needs.create_release.result == 'success' }}
