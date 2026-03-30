@@ -15,21 +15,16 @@ inputs:
     description: "TORCH_CUDA_ARCH_LIST value (e.g. '8.0 8.6 9.0+PTX')"
     required: true
   apex-commit:
-    description: "Apex git ref to build (default: master)"
-    required: false
-    default: "master"
-  is-upload:
-    description: "Whether to upload the wheel to the GitHub release"
-    required: false
-    default: "true"
+    description: "Apex git commit SHA to build"
+    required: true
+  release-tag:
+    description: "GitHub release tag to upload wheels to"
+    required: true
 
 outputs:
   wheel-path:
     description: "Path to the built wheel"
     value: ${{ steps.build_wheels.outputs.WHEEL_PATH }}
-  wheel-path-manylinux:
-    description: "Path to the manylinux-repaired wheel"
-    value: ${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}
 
 runs:
   using: "composite"
@@ -88,19 +83,14 @@ runs:
             print('amp_C not available (python-only build)')
         "
 
-    - name: Upload release asset
-      if: ${{ inputs.is-upload == 'true' }}
+    - name: Upload to release
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        tag_name=${{ github.ref_name }}
         wheel_path="${{ steps.build_wheels.outputs.WHEEL_PATH }}"
-        if [ ! -f "$wheel_path" ]; then
-          echo "Error: wheel not found at $wheel_path"
-          exit 1
-        fi
-        gh release upload "$tag_name" "$wheel_path" --clobber --repo "$GITHUB_REPOSITORY"
+        gh release upload "${{ inputs.release-tag }}" "$wheel_path" \
+          --clobber --repo "$GITHUB_REPOSITORY"
 
     - name: Apply auditwheel repair
       continue-on-error: true
@@ -126,17 +116,16 @@ runs:
           python -c "import apex; print('manylinux wheel OK')"
         fi
 
-    - name: Upload manylinux wheel
-      if: ${{ inputs.is-upload == 'true' }}
+    - name: Upload manylinux wheel to release
       continue-on-error: true
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        tag_name=${{ github.ref_name }}
         ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
         if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
-          gh release upload "$tag_name" "$ml_wheel" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "${{ inputs.release-tag }}" "$ml_wheel" \
+            --clobber --repo "$GITHUB_REPOSITORY"
         else
           echo "Skipping manylinux upload: file not found"
         fi

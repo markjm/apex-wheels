@@ -1,38 +1,16 @@
-name: Build Apex wheels and upload to GitHub Releases
+name: Build Apex wheels
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       apex-commit:
-        description: "Apex git ref to build (default: master)"
-        required: false
-        default: "master"
+        description: "Apex git commit SHA to build"
+        required: true
 
 permissions:
   contents: write
 
 jobs:
-
-  create_release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if gh release view "${{ github.ref_name }}" &>/dev/null; then
-            echo "Release ${{ github.ref_name }} already exists — reusing it"
-          else
-            gh release create "${{ github.ref_name }}" \
-              --title "${{ github.ref_name }}" \
-              --notes "NVIDIA Apex pre-built wheels — ${{ github.ref_name }}"
-          fi
 
   create_matrix:
     name: Create Matrix
@@ -47,28 +25,30 @@ jobs:
           python3 -m scripts.coverage_matrix matrix | tee /tmp/matrix.json
           echo "matrix=$(cat /tmp/matrix.json)" >> $GITHUB_OUTPUT
 
-  resolve_apex_ref:
-    name: Resolve Apex ref
+  create_release:
+    name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      apex-commit: ${{ steps.resolve.outputs.apex-commit }}
     steps:
-      - name: Resolve
-        id: resolve
+      - uses: actions/checkout@v4
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ref="${{ inputs.apex-commit }}"
-          echo "apex-commit=${ref:-master}" >> "$GITHUB_OUTPUT"
+          tag="${{ inputs.apex-commit }}"
+          if gh release view "$tag" &>/dev/null; then
+            echo "Release $tag already exists — reusing it"
+          else
+            gh release create "$tag" \
+              --title "apex @ $tag" \
+              --notes "NVIDIA Apex pre-built wheels for commit \`$tag\`"
+          fi
 
   # -------------------------------------------------------------------
   # Linux x86_64 builds
   # -------------------------------------------------------------------
   build_wheels_linux:
     name: "py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-cu${{ matrix.cuda-version }}"
-    needs: [create_release, create_matrix, resolve_apex_ref]
-    if: |
-      needs.create_matrix.result == 'success'
-      && needs.resolve_apex_ref.result == 'success'
-      && fromjson(needs.create_matrix.outputs.matrix).linux
+    needs: [create_matrix, create_release]
     runs-on: self-hosted
     timeout-minutes: 330
     container:
@@ -93,5 +73,5 @@ jobs:
           torch-version: ${{ matrix.torch-version }}
           cuda-version: ${{ matrix.cuda-version }}
           cuda-arch-list: ${{ matrix.cuda-arch-list }}
-          apex-commit: ${{ needs.resolve_apex_ref.outputs.apex-commit }}
-          is-upload: ${{ needs.create_release.result == 'success' }}
+          apex-commit: ${{ inputs.apex-commit }}
+          release-tag: ${{ inputs.apex-commit }}
