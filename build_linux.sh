@@ -75,6 +75,22 @@ git -C apex checkout "$APEX_COMMIT"
 git -C apex submodule update --init --recursive
 
 # ---------------------------------------------------------------------------
+# Patch upstream sources
+#
+# group_norm_v2 uses std::tuple / std::make_tuple without including <tuple>.
+# Older CUDA toolkits pulled it in transitively via cooperative_groups.h but
+# CUDA 12.8+ no longer does, causing build failures.
+# ---------------------------------------------------------------------------
+for f in apex/contrib/csrc/group_norm_v2/gn_cuda_kernel.cuh \
+         apex/contrib/csrc/group_norm_v2/gn_cuda_host_template.cuh; do
+  target="apex/$f"
+  if [ -f "$target" ] && ! grep -q '#include <tuple>' "$target"; then
+    sed -i '/#pragma once/a #include <tuple>' "$target"
+    echo "Patched $target: added #include <tuple>"
+  fi
+done
+
+# ---------------------------------------------------------------------------
 # Determine wheel version from apex's git tag
 #
 # Apex uses YY.MM tags (e.g. 25.09) matching NGC container releases.
