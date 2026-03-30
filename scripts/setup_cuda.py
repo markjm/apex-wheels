@@ -18,12 +18,13 @@ directly via GITHUB_OUTPUT / GITHUB_ENV / GITHUB_PATH.
 from __future__ import annotations
 
 import argparse
+import glob
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
-import shutil
 import tempfile
 import urllib.request
 
@@ -131,6 +132,22 @@ def _sudo(cmd: str, **kw) -> subprocess.CompletedProcess[str]:  # type: ignore[t
     return _run(f"{prefix}{cmd}", **kw)
 
 
+def _symlink_headers_into_cuda(cuda_path: str) -> None:
+    """Symlink NCCL/cuDNN headers from /usr/include into the CUDA include dir.
+
+    libnccl-dev and libcudnn-dev install headers to /usr/include/, but nvcc
+    only searches -isystem $CUDA_HOME/include for .cu files.
+    """
+    cuda_include = os.path.join(cuda_path, "include")
+    for pattern in ("/usr/include/nccl*.h", "/usr/include/cudnn*.h"):
+        for src in sorted(glob.glob(pattern)):
+            name = os.path.basename(src)
+            dst = os.path.join(cuda_include, name)
+            if not os.path.exists(dst):
+                _sudo(f"ln -sf {src} {dst}")
+                print(f"[setup-cuda] Symlinked {src} -> {dst}")
+
+
 def install_network(version: str) -> str:
     """Install CUDA via NVIDIA's apt repo (Debian/Ubuntu)."""
     os_info = _parse_os_release()
@@ -173,6 +190,8 @@ def install_network(version: str) -> str:
     cuda_path = "/usr/local/cuda"
     if not os.path.isdir(cuda_path):
         raise RuntimeError(f"CUDA install succeeded but {cuda_path} not found")
+
+    _symlink_headers_into_cuda(cuda_path)
     return cuda_path
 
 
