@@ -2,8 +2,8 @@
 """Install a specific CUDA toolkit version on Linux (Ubuntu/Debian).
 
 Replaces the mjun0812/setup-cuda GitHub Action with a pure-Python script
-that lives in this repository.  Adds NVIDIA's apt repo and installs the
-cuda-toolkit package (Debian/Ubuntu).
+that lives in this repository.  Adds NVIDIA's network apt repo and installs
+the cuda-toolkit package (Debian/Ubuntu).
 
 Usage:
     python scripts/setup_cuda.py <version>
@@ -132,10 +132,16 @@ def _sudo(cmd: str, **kw) -> subprocess.CompletedProcess[str]:  # type: ignore[t
     return _run(f"{prefix}{cmd}", **kw)
 
 
-def _pin_pkg(pkg: str, cuda_mm: str, cuda_major: str) -> str:
-    """Return 'pkg=version' pinned to the CUDA version, or just 'pkg' as fallback."""
+def _apt_install(pkg_spec: str) -> bool:
+    """Try to apt-get install a package spec; return True on success."""
+    result = _sudo(f"apt-get install -y {pkg_spec}", check=False)
+    return result.returncode == 0
+
+
+def _install_nccl(cuda_mm: str, cuda_major: str) -> None:
+    """Install libnccl-dev pinned to the matching CUDA version."""
     result = subprocess.run(
-        ["apt-cache", "madison", pkg], capture_output=True, text=True
+        ["apt-cache", "madison", "libnccl-dev"], capture_output=True, text=True
     )
     for suffix in (f"+cuda{cuda_mm}", f"+cuda{cuda_major}"):
         for line in result.stdout.splitlines():
@@ -143,19 +149,15 @@ def _pin_pkg(pkg: str, cuda_mm: str, cuda_major: str) -> str:
             if len(cols) >= 2:
                 ver = cols[1].strip()
                 if ver.endswith(suffix):
-                    print(f"[setup-cuda] Pinning {pkg}={ver}")
-                    return f"{pkg}={ver}"
-    print(f"[setup-cuda] No CUDA-{cuda_mm} version found for {pkg}, using latest")
-    return pkg
+                    print(f"[setup-cuda] Trying libnccl-dev={ver}")
+                    if _apt_install(f"libnccl-dev={ver}"):
+                        return
+    print("[setup-cuda] Falling back to unpinned libnccl-dev")
+    _apt_install("libnccl-dev")
 
 
-def _resolve_cudnn_pkg(cuda_major: str) -> str:
-    """Find the correct cuDNN dev package name.
-
-    NVIDIA renamed packages across versions:
-      libcudnn-dev, libcudnn8-dev, libcudnn9-dev-cuda-12, etc.
-    Search apt-cache for whichever variant exists.
-    """
+def _install_cudnn(cuda_major: str) -> None:
+    """Install the cuDNN dev package (name varies across NVIDIA repo generations)."""
     candidates = [
         f"libcudnn9-dev-cuda-{cuda_major}",
         f"libcudnn8-dev-cuda-{cuda_major}",
@@ -165,14 +167,13 @@ def _resolve_cudnn_pkg(cuda_major: str) -> str:
     ]
     for name in candidates:
         result = subprocess.run(
-            ["apt-cache", "show", name],
-            capture_output=True, text=True,
+            ["apt-cache", "show", name], capture_output=True, text=True
         )
         if result.returncode == 0 and "Package:" in result.stdout:
-            print(f"[setup-cuda] Resolved cuDNN dev package: {name}")
-            return name
-    print("[setup-cuda] WARNING: no cuDNN dev package found in apt cache")
-    return ""
+            print(f"[setup-cuda] Installing cuDNN dev package: {name}")
+            if _apt_install(name):
+                return
+    print("[setup-cuda] WARNING: could not install any cuDNN dev package")
 
 
 def _symlink_headers_into_cuda(cuda_path: str) -> None:
@@ -230,69 +231,15 @@ def install_network(version: str) -> str:
     mm_dash = major_minor.replace(".", "-")
     major = version.split(".")[0]
 
-    nccl_pkg = _pin_pkg("libnccl-dev", major_minor, major)
-
-    cudnn_name = _resolve_cudnn_pkg(major)
-    if cudnn_name:
-        cudnn_pkg = _pin_pkg(cudnn_name, major_minor, major)
-    else:
-        cudnn_pkg = ""
-
-    pkgs = f"cuda-toolkit-{mm_dash} {nccl_pkg}"
-    if cudnn_pkg:
-        pkgs += f" {cudnn_pkg}"
-    _sudo(f"apt-get install -y {pkgs}")
+    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash}")
+    _install_nccl(major_minor, major)
+    _install_cudnn(major)
 
     cuda_path = "/usr/local/cuda"
     if not os.path.isdir(cuda_path):
         raise RuntimeError(f"CUDA install succeeded but {cuda_path} not found")
 
     _symlink_headers_into_cuda(cuda_path)
-    return cuda_path
-
-
-# ---------------------------------------------------------------------------
-# Local (.run) install
-# ---------------------------------------------------------------------------
-
-
-def _find_run_installer_url(version: str) -> str:
-    """Find the .run installer URL by checking NVIDIA's md5sum manifest."""
-    md5_url = f"https://developer.download.nvidia.com/compute/cuda/{version}/docs/sidebar/md5sum.txt"
-    text = _fetch_text(md5_url)
-
-    arch = platform.machine()
-    if arch in ("x86_64", "amd64"):
-        suffix = "_linux.run"
-    elif arch == "aarch64":
-        suffix = "_linux_sbsa.run"
-    else:
-        raise RuntimeError(f"Unsupported architecture: {arch}")
-
-    for line in text.splitlines():
-        parts = line.split()
-        if len(parts) >= 2:
-            fname = parts[-1]
-            if fname.endswith(suffix):
-                return f"https://developer.download.nvidia.com/compute/cuda/{version}/local_installers/{fname}"
-
-    raise RuntimeError(f"Could not find .run installer for CUDA {version} ({suffix})")
-
-
-def install_local(version: str) -> str:
-    """Download and run the CUDA .run installer."""
-    url = _find_run_installer_url(version)
-    print(f"[setup-cuda] Downloading {url} ...")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        local_run = os.path.join(tmpdir, f"cuda_{version}_linux.run")
-        urllib.request.urlretrieve(url, local_run)
-        os.chmod(local_run, 0o755)
-        _sudo(f"sh {local_run} --silent --override --toolkit")
-
-    cuda_path = "/usr/local/cuda"
-    if not os.path.isdir(cuda_path):
-        raise RuntimeError(f"CUDA install succeeded but {cuda_path} not found")
     return cuda_path
 
 
@@ -362,33 +309,13 @@ def set_env(cuda_path: str, version: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Install NVIDIA CUDA toolkit")
     parser.add_argument("version", help="CUDA version, e.g. 12.8 or 12.8.0")
-    parser.add_argument(
-        "--method",
-        choices=("auto", "network", "local"),
-        default="auto",
-        help="Install method (default: auto — tries network, falls back to local)",
-    )
     args = parser.parse_args()
 
-    print(f"[setup-cuda] Requested CUDA {args.version}, method={args.method}")
+    print(f"[setup-cuda] Requested CUDA {args.version}")
     version = resolve_version(args.version)
     print(f"[setup-cuda] Resolved to CUDA {version}")
 
-    cuda_path: str | None = None
-
-    if args.method == "network":
-        cuda_path = install_network(version)
-    elif args.method == "local":
-        cuda_path = install_local(version)
-    else:
-        try:
-            cuda_path = install_network(version)
-        except Exception as exc:
-            print(f"[setup-cuda] Network install failed: {exc}", file=sys.stderr)
-            print(
-                "[setup-cuda] Falling back to local .run installer ...", file=sys.stderr
-            )
-            cuda_path = install_local(version)
+    cuda_path = install_network(version)
 
     set_env(cuda_path, version)
 
