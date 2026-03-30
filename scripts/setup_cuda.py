@@ -149,6 +149,32 @@ def _pin_pkg(pkg: str, cuda_mm: str, cuda_major: str) -> str:
     return pkg
 
 
+def _resolve_cudnn_pkg(cuda_major: str) -> str:
+    """Find the correct cuDNN dev package name.
+
+    NVIDIA renamed packages across versions:
+      libcudnn-dev, libcudnn8-dev, libcudnn9-dev-cuda-12, etc.
+    Search apt-cache for whichever variant exists.
+    """
+    candidates = [
+        f"libcudnn9-dev-cuda-{cuda_major}",
+        f"libcudnn8-dev-cuda-{cuda_major}",
+        "libcudnn-dev",
+        "libcudnn9-dev",
+        "libcudnn8-dev",
+    ]
+    for name in candidates:
+        result = subprocess.run(
+            ["apt-cache", "show", name],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0 and "Package:" in result.stdout:
+            print(f"[setup-cuda] Resolved cuDNN dev package: {name}")
+            return name
+    print("[setup-cuda] WARNING: no cuDNN dev package found in apt cache")
+    return ""
+
+
 def _symlink_headers_into_cuda(cuda_path: str) -> None:
     """Symlink NCCL/cuDNN headers from /usr/include into the CUDA include dir.
 
@@ -205,8 +231,17 @@ def install_network(version: str) -> str:
     major = version.split(".")[0]
 
     nccl_pkg = _pin_pkg("libnccl-dev", major_minor, major)
-    cudnn_pkg = _pin_pkg("libcudnn-dev", major_minor, major)
-    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash} {nccl_pkg} {cudnn_pkg}")
+
+    cudnn_name = _resolve_cudnn_pkg(major)
+    if cudnn_name:
+        cudnn_pkg = _pin_pkg(cudnn_name, major_minor, major)
+    else:
+        cudnn_pkg = ""
+
+    pkgs = f"cuda-toolkit-{mm_dash} {nccl_pkg}"
+    if cudnn_pkg:
+        pkgs += f" {cudnn_pkg}"
+    _sudo(f"apt-get install -y {pkgs}")
 
     cuda_path = "/usr/local/cuda"
     if not os.path.isdir(cuda_path):
