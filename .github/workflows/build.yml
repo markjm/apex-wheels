@@ -76,8 +76,10 @@ jobs:
       && needs.create_matrix.result == 'success'
       && needs.resolve_apex_ref.result == 'success'
       && fromjson(needs.create_matrix.outputs.matrix).linux
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, apex-builder]
     timeout-minutes: 330
+    container:
+      image: nvidia/cuda:${{ matrix.cuda-version }}.0-devel-ubuntu22.04
     env:
       DEBIAN_FRONTEND: noninteractive
       TERM: xterm-256color
