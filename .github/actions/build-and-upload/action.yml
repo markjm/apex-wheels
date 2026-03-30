@@ -95,7 +95,7 @@ runs:
           echo "Error: wheel not found at $wheel_path"
           exit 1
         fi
-        gh release upload "$tag_name" "$wheel_path" --clobber
+        gh release upload "$tag_name" "$wheel_path" --clobber --repo "$GITHUB_REPOSITORY"
 
     - name: Apply auditwheel repair
       continue-on-error: true
@@ -131,7 +131,7 @@ runs:
         tag_name=${{ github.ref_name }}
         ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
         if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
-          gh release upload "$tag_name" "$ml_wheel" --clobber
+          gh release upload "$tag_name" "$ml_wheel" --clobber --repo "$GITHUB_REPOSITORY"
         else
           echo "Skipping manylinux upload: file not found"
         fi
