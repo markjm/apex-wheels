@@ -17,23 +17,26 @@ import sys
 
 # ── Versions to build ──────────────────────────────────────────────────
 
-PYTHON_VERSIONS = ["3.12"]
+PYTHON_VERSIONS = ["3.11", "3.12"]
 
 TORCH_FULL_VERSIONS = [
+    "2.6.0",
     "2.8.0",
     "2.9.1",
 ]
 
-LINUX_CUDA_VERSIONS = ["12.8"]
+LINUX_CUDA_VERSIONS = ["12.4", "12.8", "12.9"]
 
 # ── Compatibility tables ───────────────────────────────────────────────
 
 TORCH_SUPPORT_CUDA_VERSIONS: dict[str, tuple[str, ...]] = {
+    "2.6": ("11.8", "12.1", "12.4", "12.6"),
     "2.8": ("12.6", "12.8", "12.9"),
     "2.9": ("12.6", "12.8", "13.0"),
 }
 
 TORCH_SUPPORT_PYTHON_VERSIONS: dict[str, tuple[str, str]] = {
+    "2.6": ("3.9", "3.12"),
     "2.8": ("3.9", "3.13"),
     "2.9": ("3.10", "3.14"),
 }
