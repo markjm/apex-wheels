@@ -75,29 +75,17 @@ git -C apex checkout "$APEX_COMMIT"
 git -C apex submodule update --init --recursive
 
 # ---------------------------------------------------------------------------
-# Determine wheel version from apex's git tag
+# Determine wheel version
 #
-# Apex uses YY.MM tags (e.g. 25.09) matching NGC container releases.
-# setup.py is hardcoded to version="0.1" and never changes, so we
-# derive a meaningful version from git instead:
-#   - On a tagged commit:  25.09+cu128torch2.9
-#   - Off a tag:           25.09.dev3+cu128torch2.9  (3 commits past tag)
+# setup.py is hardcoded to version="0.1" — we derive a version from
+# the commit date and short SHA of the Apex checkout.
+#   e.g. 0.1.dev20260330+g4bdecd0.cu128torch2.8
 # ---------------------------------------------------------------------------
 LOCAL_VERSION_LABEL="cu${MATRIX_CUDA_VERSION}torch${MATRIX_TORCH_VERSION}"
-
-APEX_TAG=$(git -C apex describe --tags --abbrev=0 2>/dev/null || echo "")
-APEX_DISTANCE=$(git -C apex rev-list "${APEX_TAG:+${APEX_TAG}..HEAD}" --count 2>/dev/null || echo "0")
 APEX_SHORT_SHA=$(git -C apex rev-parse --short=7 HEAD)
+APEX_DATE=$(git -C apex log -1 --format=%cd --date=format:%Y%m%d)
 
-if [[ -n "$APEX_TAG" && "$APEX_DISTANCE" == "0" ]]; then
-  APEX_BASE_VERSION="$APEX_TAG"
-elif [[ -n "$APEX_TAG" ]]; then
-  APEX_BASE_VERSION="${APEX_TAG}.dev${APEX_DISTANCE}"
-else
-  APEX_BASE_VERSION="0.0.dev$(date +%Y%m%d)"
-fi
-
-export APEX_VERSION="${APEX_BASE_VERSION}+${LOCAL_VERSION_LABEL}"
+export APEX_VERSION="0.1.dev${APEX_DATE}+g${APEX_SHORT_SHA}.${LOCAL_VERSION_LABEL}"
 echo "Wheel version: $APEX_VERSION  (apex commit: $APEX_SHORT_SHA)"
 
 # Patch setup.py so it reads the version from $APEX_VERSION

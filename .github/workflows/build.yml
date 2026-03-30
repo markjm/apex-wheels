@@ -47,8 +47,6 @@ jobs:
           python3 -m scripts.coverage_matrix matrix | tee /tmp/matrix.json
           echo "matrix=$(cat /tmp/matrix.json)" >> $GITHUB_OUTPUT
 
-  # Derive the Apex git ref: workflow_dispatch input takes priority,
-  # otherwise strip the leading "v" from the tag name (v25.09 → 25.09).
   resolve_apex_ref:
     name: Resolve Apex ref
     runs-on: ubuntu-latest
@@ -58,12 +56,8 @@ jobs:
       - name: Resolve
         id: resolve
         run: |
-          if [[ -n "${{ inputs.apex-commit }}" ]]; then
-            echo "apex-commit=${{ inputs.apex-commit }}" >> "$GITHUB_OUTPUT"
-          else
-            ref="${{ github.ref_name }}"
-            echo "apex-commit=${ref#v}" >> "$GITHUB_OUTPUT"
-          fi
+          ref="${{ inputs.apex-commit }}"
+          echo "apex-commit=${ref:-master}" >> "$GITHUB_OUTPUT"
 
   # -------------------------------------------------------------------
   # Linux x86_64 builds
