@@ -158,7 +158,17 @@ fi
 # ---------------------------------------------------------------------------
 cd apex
 
-export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0 8.6 9.0 10.0 12.0+PTX}"
+if [[ -z "${TORCH_CUDA_ARCH_LIST:-}" ]]; then
+  CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | awk -F. '{printf "%d%02d", $1, $2}')
+  if (( CUDA_MAJOR_MINOR >= 1208 )); then
+    TORCH_CUDA_ARCH_LIST="8.0 8.6 9.0 10.0 12.0+PTX"
+  elif (( CUDA_MAJOR_MINOR >= 1206 )); then
+    TORCH_CUDA_ARCH_LIST="8.0 8.6 9.0 10.0+PTX"
+  else
+    TORCH_CUDA_ARCH_LIST="8.0 8.6 9.0+PTX"
+  fi
+fi
+export TORCH_CUDA_ARCH_LIST
 export APEX_CPP_EXT=1
 export APEX_CUDA_EXT=1
 export APEX_FAST_MULTIHEAD_ATTN=1
