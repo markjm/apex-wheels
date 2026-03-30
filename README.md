@@ -1,57 +1,33 @@
 # apex-wheels
 
-Pre-built wheels for [NVIDIA Apex](https://github.com/NVIDIA/apex) with all
-CUDA extensions enabled.
+Pre-built wheels for [NVIDIA Apex](https://github.com/NVIDIA/apex) with some supported extensions enabled.
 
-Building Apex from source takes a long time and requires a CUDA toolkit.  This
-repository automates the process with GitHub Actions and publishes the resulting
-wheels as GitHub Release assets.
 
-## Wheel naming
+Per the upstream README, the expectation is that you build this project from source to work with the specific torch/cuda/python/extensions you want. While that definitely is the ideal approach for an optimized build, it can be a pain to set up. This repository is focused on providing wheels for a common case using common stuff in a selection of CUDA/PyTorch/Python versions. This makes it easier to try things out across a range of environments without needing to build from source each time.
 
-Wheels follow the local-version convention used by
-[flash-attention-prebuild-wheels](https://github.com/mjun0812/flash-attention-prebuild-wheels):
+The project structure and code is heavily inspired by [flash-attention-prebuild-wheels](https://github.com/mjun0812/flash-attention-prebuild-wheels), so thanks to them for the inspiration!
 
-```
-apex-[YY.MM]+cu[CUDA]torch[PyTorch]-cp[Python]-cp[Python]-linux_x86_64.whl
-```
-
-The base version comes from Apex's `YY.MM` git tags (matching NVIDIA NGC
-container releases).  Builds from commits between tags get a `.devN` suffix.
-
-| Apex checkout        | Wheel version example                |
-| -------------------- | ------------------------------------ |
-| On tag `25.09`       | `apex-25.09+cu128torch2.9-…`        |
-| 3 commits past 25.09 | `apex-25.09.dev3+cu128torch2.9-…`  |
 
 ## Install
 
 Find the wheel matching your environment from the
-[Releases](../../releases) page, then install directly:
+[Releases](https://github.com/markjm/apex-wheels/releases) page, then install directly:
 
 ```bash
 pip install https://github.com/markjm/apex-wheels/releases/download/v25.09/apex-25.09+cu128torch2.9-cp312-cp312-linux_x86_64.whl
 ```
 
-Or download first:
-
-```bash
-wget <wheel-url>
-pip install ./apex-25.09+cu128torch2.9-cp312-cp312-linux_x86_64.whl
-```
-
 ## Extensions included
 
-The wheels are built with **all** extensions enabled:
+The wheels are built with the following extensions enabled:
 
 | Environment variable     | Extension                          |
 | ------------------------ | ---------------------------------- |
 | `APEX_CPP_EXT`           | Core C++ extension                 |
 | `APEX_CUDA_EXT`          | Core CUDA extensions (amp, syncbn, fused layer norm, …) |
-| `APEX_ALL_CONTRIB_EXT`   | Every contrib extension (xentropy, fmha, fast layer norm, distributed adam/lamb, …) |
+| `APEX_FAST_MULTIHEAD_ATTN` | Fast multihead attention |
 
-Extensions that cannot be built for a particular CUDA / cuDNN / NCCL
-combination are silently skipped by the upstream `setup.py`.
+I am open to adding additional extensions if there is high demand. This list is just what I personally care about and know builds successfully.
 
 ## Building locally
 
@@ -69,19 +45,4 @@ TORCH_CUDA_ARCH_LIST="8.9" ./build_linux.sh 3.12 2.9.1 12.8 25.09
 
 ## Triggering a release
 
-Push a `v`-prefixed tag that matches an Apex tag to build and release wheels.
-The `v` prefix is stripped to derive the Apex git ref (e.g. `v25.09` → Apex
-tag `25.09`):
-
-```bash
-git tag v25.09
-git push origin v25.09
-```
-
-Or use **workflow_dispatch** from the Actions tab to build an arbitrary Apex
-commit on demand.
-
-## Customizing the matrix
-
-Edit `scripts/coverage_matrix.py` to change which Python / PyTorch / CUDA
-combinations are built.
+Releases are automatically created when a tag is pushed to the `apex-wheels` repository. The tag is expected to match the `apex` tag to build. If I end up needing to support any patches for specific apex versions, then this approach may change.
