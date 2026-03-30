@@ -75,22 +75,6 @@ git -C apex checkout "$APEX_COMMIT"
 git -C apex submodule update --init --recursive
 
 # ---------------------------------------------------------------------------
-# Patch upstream sources
-#
-# group_norm_v2 uses std::tuple / std::make_tuple without including <tuple>.
-# Older CUDA toolkits pulled it in transitively via cooperative_groups.h but
-# CUDA 12.8+ no longer does, causing build failures.
-# ---------------------------------------------------------------------------
-for f in apex/contrib/csrc/group_norm_v2/gn_cuda_kernel.cuh \
-         apex/contrib/csrc/group_norm_v2/gn_cuda_host_template.cuh; do
-  target="apex/$f"
-  if [ -f "$target" ] && ! grep -q '#include <tuple>' "$target"; then
-    sed -i '/#pragma once/a #include <tuple>' "$target"
-    echo "Patched $target: added #include <tuple>"
-  fi
-done
-
-# ---------------------------------------------------------------------------
 # Determine wheel version from apex's git tag
 #
 # Apex uses YY.MM tags (e.g. 25.09) matching NGC container releases.
@@ -170,19 +154,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Build the wheel with all extensions enabled
+# Build the wheel
 # ---------------------------------------------------------------------------
 cd apex
 
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0 8.6 9.0 10.0 12.0+PTX}"
 export APEX_CPP_EXT=1
 export APEX_CUDA_EXT=1
-export APEX_ALL_CONTRIB_EXT=1
+export APEX_FAST_MULTIHEAD_ATTN=1
 export APEX_PARALLEL_BUILD=${MAX_JOBS}
 export MAX_JOBS=${MAX_JOBS}
 export NVCC_APPEND_FLAGS="${NVCC_APPEND_FLAGS:+${NVCC_APPEND_FLAGS} }--threads ${NVCC_THREADS}"
 
-echo "Building wheel (all extensions) ..."
+echo "Building wheel ..."
 echo "  TORCH_CUDA_ARCH_LIST=$TORCH_CUDA_ARCH_LIST"
 echo "  APEX_PARALLEL_BUILD=$APEX_PARALLEL_BUILD"
 echo "  MAX_JOBS=$MAX_JOBS"
