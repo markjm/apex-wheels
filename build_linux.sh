@@ -83,9 +83,8 @@ git -C apex submodule update --init --recursive
 # ---------------------------------------------------------------------------
 LOCAL_VERSION_LABEL="cu${MATRIX_CUDA_VERSION}torch${MATRIX_TORCH_VERSION}"
 APEX_SHORT_SHA=$(git -C apex rev-parse --short=7 HEAD)
-APEX_DATE=$(git -C apex log -1 --format=%cd --date=format:%Y%m%d)
 
-export APEX_VERSION="0.1.dev${APEX_DATE}+g${APEX_SHORT_SHA}.${LOCAL_VERSION_LABEL}"
+export APEX_VERSION="0.1+g${APEX_SHORT_SHA}.${LOCAL_VERSION_LABEL}"
 echo "Wheel version: $APEX_VERSION  (apex commit: $APEX_SHORT_SHA)"
 
 # Patch setup.py so it reads the version from $APEX_VERSION
