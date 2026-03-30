@@ -28,6 +28,8 @@ jobs:
           if [[ -z "$ref" ]]; then
             ref=$(gh api repos/NVIDIA/apex/commits/master --jq '.sha[:7]')
             echo "No commit specified — using latest master: $ref"
+          else
+            ref="${ref:0:7}"
           fi
           echo "apex-commit=$ref" >> "$GITHUB_OUTPUT"
 
