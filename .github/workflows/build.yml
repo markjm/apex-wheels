@@ -76,7 +76,7 @@ jobs:
       && needs.create_matrix.result == 'success'
       && needs.resolve_apex_ref.result == 'success'
       && fromjson(needs.create_matrix.outputs.matrix).linux
-    runs-on: [self-hosted, apex-builder]
+    runs-on: [self-hosted]
     timeout-minutes: 330
     env:
       DEBIAN_FRONTEND: noninteractive
