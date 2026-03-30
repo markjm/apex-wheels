@@ -231,7 +231,10 @@ def install_network(version: str) -> str:
     mm_dash = major_minor.replace(".", "-")
     major = version.split(".")[0]
 
-    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash}")
+    if shutil.which("nvcc"):
+        print("[setup-cuda] nvcc already present — skipping cuda-toolkit install")
+    else:
+        _sudo(f"apt-get install -y cuda-toolkit-{mm_dash}")
     _install_nccl(major_minor, major)
     _install_cudnn(major)
 
