@@ -30,7 +30,7 @@ Find the wheel matching your environment from the
 [Releases](../../releases) page, then install directly:
 
 ```bash
-pip install https://github.com/<owner>/apex-wheels/releases/download/<tag>/apex-25.09+cu128torch2.9-cp312-cp312-linux_x86_64.whl
+pip install https://github.com/markjm/apex-wheels/releases/download/v25.09/apex-25.09+cu128torch2.9-cp312-cp312-linux_x86_64.whl
 ```
 
 Or download first:
@@ -58,19 +58,28 @@ combination are silently skipped by the upstream `setup.py`.
 ```bash
 ./build_linux.sh <python-version> <torch-version> <cuda-version> [apex-commit]
 # Example:
-./build_linux.sh 3.12 2.9.1 12.8
+./build_linux.sh 3.12 2.9.1 12.8 25.09
+```
+
+To override the target GPU architectures (default: `8.0 8.6 9.0 10.0 12.0+PTX`):
+
+```bash
+TORCH_CUDA_ARCH_LIST="8.9" ./build_linux.sh 3.12 2.9.1 12.8 25.09
 ```
 
 ## Triggering a release
 
-Push a tag to trigger the full matrix build:
+Push a `v`-prefixed tag that matches an Apex tag to build and release wheels.
+The `v` prefix is stripped to derive the Apex git ref (e.g. `v25.09` → Apex
+tag `25.09`):
 
 ```bash
-git tag v0.0.1
-git push origin v0.0.1
+git tag v25.09
+git push origin v25.09
 ```
 
-Or use **workflow_dispatch** from the Actions tab to build on demand.
+Or use **workflow_dispatch** from the Actions tab to build an arbitrary Apex
+commit on demand.
 
 ## Customizing the matrix
 

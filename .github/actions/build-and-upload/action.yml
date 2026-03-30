@@ -44,7 +44,7 @@ runs:
       shell: bash
       run: |
         uv venv -p ${{ inputs.python-version }}
-        uv pip install -U pip "setuptools>=75" wheel packaging ninja auditwheel patchelf
+        uv pip install -U pip "setuptools>=75" wheel packaging auditwheel
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
     - name: Setup CUDA
@@ -100,7 +100,7 @@ runs:
         mkdir -p "$DIST_MANYLINUX_DIR"
         auditwheel show ${{ steps.build_wheels.outputs.WHEEL_PATH }}
         auditwheel repair \
-          --exclude libc10* --exclude libtorch* --exclude libcu* --exclude libnv* --exclude 'libtorch*' \
+          --exclude 'libc10*' --exclude 'libtorch*' --exclude 'libcu*' --exclude 'libnv*' \
           ${{ steps.build_wheels.outputs.WHEEL_PATH }} -w "$DIST_MANYLINUX_DIR"
         wheel_path_manylinux=$(ls "$DIST_MANYLINUX_DIR"/*manylinux*.whl 2>/dev/null | head -n 1 || echo "")
         echo "WHEEL_PATH_MANYLINUX=$wheel_path_manylinux" >> $GITHUB_OUTPUT

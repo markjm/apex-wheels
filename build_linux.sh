@@ -26,13 +26,13 @@ echo "  CUDA matrix tag:  $MATRIX_CUDA_VERSION"
 echo "  Torch matrix tag: $MATRIX_TORCH_VERSION"
 
 # ---------------------------------------------------------------------------
-# Install CUDA toolkit if nvcc is not already available
+# Install CUDA toolkit if nvcc is not already available.
+# In CI the action.yml "Setup CUDA" step handles this; this block is
+# only needed for standalone local builds.
 # ---------------------------------------------------------------------------
 if ! command -v nvcc &>/dev/null; then
   echo "nvcc not found — installing CUDA ${CUDA_VERSION} via setup_cuda.py ..."
   python "$SCRIPT_DIR/scripts/setup_cuda.py" "$CUDA_VERSION"
-  # Re-source env vars that setup_cuda.py wrote for GitHub Actions, or
-  # fall back to the default CUDA path.
   export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
   export CUDA_PATH="${CUDA_PATH:-/usr/local/cuda}"
   export PATH="${CUDA_HOME}/bin:${PATH}"
