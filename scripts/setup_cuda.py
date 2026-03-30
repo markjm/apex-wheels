@@ -132,6 +132,23 @@ def _sudo(cmd: str, **kw) -> subprocess.CompletedProcess[str]:  # type: ignore[t
     return _run(f"{prefix}{cmd}", **kw)
 
 
+def _pin_pkg(pkg: str, cuda_mm: str, cuda_major: str) -> str:
+    """Return 'pkg=version' pinned to the CUDA version, or just 'pkg' as fallback."""
+    result = subprocess.run(
+        ["apt-cache", "madison", pkg], capture_output=True, text=True
+    )
+    for suffix in (f"+cuda{cuda_mm}", f"+cuda{cuda_major}"):
+        for line in result.stdout.splitlines():
+            cols = line.split("|")
+            if len(cols) >= 2:
+                ver = cols[1].strip()
+                if ver.endswith(suffix):
+                    print(f"[setup-cuda] Pinning {pkg}={ver}")
+                    return f"{pkg}={ver}"
+    print(f"[setup-cuda] No CUDA-{cuda_mm} version found for {pkg}, using latest")
+    return pkg
+
+
 def _symlink_headers_into_cuda(cuda_path: str) -> None:
     """Symlink NCCL/cuDNN headers from /usr/include into the CUDA include dir.
 
@@ -185,7 +202,11 @@ def install_network(version: str) -> str:
 
     major_minor = ".".join(version.split(".")[:2])
     mm_dash = major_minor.replace(".", "-")
-    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash} libnccl-dev libcudnn-dev")
+    major = version.split(".")[0]
+
+    nccl_pkg = _pin_pkg("libnccl-dev", major_minor, major)
+    cudnn_pkg = _pin_pkg("libcudnn-dev", major_minor, major)
+    _sudo(f"apt-get install -y cuda-toolkit-{mm_dash} {nccl_pkg} {cudnn_pkg}")
 
     cuda_path = "/usr/local/cuda"
     if not os.path.isdir(cuda_path):
