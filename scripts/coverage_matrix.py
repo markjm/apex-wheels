@@ -27,6 +27,15 @@ TORCH_FULL_VERSIONS = [
 
 LINUX_CUDA_VERSIONS = ["12.4", "12.8", "12.9"]
 
+# ── CUDA arch lists per toolkit version ────────────────────────────────
+# SM 10.0 requires CUDA 12.6+, SM 12.0 requires CUDA 12.8+.
+
+CUDA_ARCH_LIST: dict[str, str] = {
+    "12.4": "8.0 8.6 9.0+PTX",
+    "12.8": "8.0 8.6 9.0 10.0 12.0+PTX",
+    "12.9": "8.0 8.6 9.0 10.0 12.0+PTX",
+}
+
 # ── Compatibility tables ───────────────────────────────────────────────
 
 TORCH_SUPPORT_CUDA_VERSIONS: dict[str, tuple[str, ...]] = {
@@ -79,6 +88,15 @@ def _build_exclude() -> list[dict[str, str]]:
     return exclude
 
 
+def _build_include() -> list[dict[str, str]]:
+    """Per-CUDA-version properties (like arch list) via ``strategy.matrix.include``."""
+    return [
+        {"cuda-version": cuda, "cuda-arch-list": CUDA_ARCH_LIST[cuda]}
+        for cuda in LINUX_CUDA_VERSIONS
+        if cuda in CUDA_ARCH_LIST
+    ]
+
+
 def build_matrix_json() -> str:
     """Return the full matrix JSON consumed by GitHub Actions."""
     return json.dumps(
@@ -88,6 +106,7 @@ def build_matrix_json() -> str:
                 "torch-version": TORCH_FULL_VERSIONS,
                 "cuda-version": LINUX_CUDA_VERSIONS,
             },
+            "include": _build_include(),
             "exclude": _build_exclude(),
         }
     )

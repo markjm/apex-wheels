@@ -88,6 +88,7 @@ jobs:
         python-version: ${{ fromjson(needs.create_matrix.outputs.matrix).linux.python-version }}
         torch-version: ${{ fromjson(needs.create_matrix.outputs.matrix).linux.torch-version }}
         cuda-version: ${{ fromjson(needs.create_matrix.outputs.matrix).linux.cuda-version }}
+        include: ${{ fromjson(needs.create_matrix.outputs.matrix).include }}
         exclude: ${{ fromjson(needs.create_matrix.outputs.matrix).exclude }}
     steps:
       - uses: actions/checkout@v4
@@ -97,5 +98,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           torch-version: ${{ matrix.torch-version }}
           cuda-version: ${{ matrix.cuda-version }}
+          cuda-arch-list: ${{ matrix.cuda-arch-list }}
           apex-commit: ${{ needs.resolve_apex_ref.outputs.apex-commit }}
           is-upload: ${{ needs.create_release.result == 'success' }}

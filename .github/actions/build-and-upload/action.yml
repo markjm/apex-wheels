@@ -11,6 +11,9 @@ inputs:
   cuda-version:
     description: "CUDA toolkit version (e.g. 12.8)"
     required: true
+  cuda-arch-list:
+    description: "TORCH_CUDA_ARCH_LIST value (e.g. '8.0 8.6 9.0+PTX')"
+    required: true
   apex-commit:
     description: "Apex git ref to build (default: master)"
     required: false
@@ -61,6 +64,8 @@ runs:
     - name: Build wheels
       id: build_wheels
       shell: bash
+      env:
+        TORCH_CUDA_ARCH_LIST: ${{ inputs.cuda-arch-list }}
       run: |
         chmod +x build_linux.sh
         ./build_linux.sh \
