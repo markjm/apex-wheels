@@ -48,7 +48,7 @@ runs:
       shell: bash
       run: |
         uv venv -p ${{ inputs.python-version }}
-        uv pip install -U pip "setuptools>=75" wheel packaging auditwheel
+        uv pip install -U pip "setuptools>=75" wheel packaging auditwheel numpy
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
     - name: Setup CUDA
