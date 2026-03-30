@@ -14,7 +14,7 @@ Find the wheel matching your environment from the
 [Releases](https://github.com/markjm/apex-wheels/releases) page, then install directly:
 
 ```bash
-pip install https://github.com/markjm/apex-wheels/releases/download/v25.09/apex-25.09+cu128torch2.9-cp312-cp312-linux_x86_64.whl
+pip install https://github.com/markjm/apex-wheels/releases/download/c6374ac/apex-0.1+g6374ac.cu128torch2.9-cp312-cp312-linux_x86_64.whl
 ```
 
 ## Extensions included
@@ -45,4 +45,4 @@ TORCH_CUDA_ARCH_LIST="8.9" ./build_linux.sh 3.12 2.9.1 12.8 25.09
 
 ## Triggering a release
 
-Releases are automatically created when a tag is pushed to the `apex-wheels` repository. The tag is expected to match the `apex` tag to build. If I end up needing to support any patches for specific apex versions, then this approach may change.
+I manually trigger a release when I want to build a new wheel. I use the following command to trigger a release. May look to automate if folks are interested in this.
