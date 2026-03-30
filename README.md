@@ -17,6 +17,8 @@ Find the wheel matching your environment from the
 pip install https://github.com/markjm/apex-wheels/releases/download/c6374ac/apex-0.1+g6374ac.cu128torch2.9-cp312-cp312-linux_x86_64.whl
 ```
 
+Waiting for the evolution of https://peps.python.org/pep-0817/ 🙏
+
 ## Extensions included
 
 The wheels are built with the following extensions enabled:
