@@ -33,7 +33,7 @@ runs:
       shell: bash
       run: |
         apt-get update
-        apt-get install -y ninja-build clang time patchelf git curl
+        apt-get install -y ninja-build clang time git curl
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
           | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -48,7 +48,7 @@ runs:
       shell: bash
       run: |
         uv venv -p ${{ inputs.python-version }}
-        uv pip install -U pip "setuptools>=75" wheel packaging auditwheel numpy
+        uv pip install -U pip "setuptools>=75" wheel packaging numpy
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
     - name: Setup CUDA
@@ -91,41 +91,3 @@ runs:
         wheel_path="${{ steps.build_wheels.outputs.WHEEL_PATH }}"
         gh release upload "${{ inputs.release-tag }}" "$wheel_path" \
           --clobber --repo "$GITHUB_REPOSITORY"
-
-    - name: Apply auditwheel repair
-      continue-on-error: true
-      id: auditwheel_repair
-      shell: bash
-      run: |
-        DIST_MANYLINUX_DIR="apex/dist_manylinux"
-        mkdir -p "$DIST_MANYLINUX_DIR"
-        auditwheel show ${{ steps.build_wheels.outputs.WHEEL_PATH }}
-        auditwheel repair \
-          --exclude 'libc10*' --exclude 'libtorch*' --exclude 'libcu*' --exclude 'libnv*' \
-          ${{ steps.build_wheels.outputs.WHEEL_PATH }} -w "$DIST_MANYLINUX_DIR"
-        wheel_path_manylinux=$(ls "$DIST_MANYLINUX_DIR"/*manylinux*.whl 2>/dev/null | head -n 1 || echo "")
-        echo "WHEEL_PATH_MANYLINUX=$wheel_path_manylinux" >> $GITHUB_OUTPUT
-
-    - name: Test manylinux wheel
-      continue-on-error: true
-      shell: bash
-      run: |
-        ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
-        if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
-          pip install --force-reinstall --no-cache-dir "$ml_wheel"
-          python -c "import apex; print('manylinux wheel OK')"
-        fi
-
-    - name: Upload manylinux wheel to release
-      continue-on-error: true
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: |
-        ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
-        if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
-          gh release upload "${{ inputs.release-tag }}" "$ml_wheel" \
-            --clobber --repo "$GITHUB_REPOSITORY"
-        else
-          echo "Skipping manylinux upload: file not found"
-        fi
