@@ -72,8 +72,7 @@ jobs:
     name: "py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-cu${{ matrix.cuda-version }}"
     needs: [create_release, create_matrix, resolve_apex_ref]
     if: |
-      always()
-      && needs.create_matrix.result == 'success'
+      needs.create_matrix.result == 'success'
       && needs.resolve_apex_ref.result == 'success'
       && fromjson(needs.create_matrix.outputs.matrix).linux
     runs-on: self-hosted
