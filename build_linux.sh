@@ -158,6 +158,7 @@ fi
 # ---------------------------------------------------------------------------
 cd apex
 
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0 8.6 9.0 10.0 12.0+PTX}"
 export APEX_CPP_EXT=1
 export APEX_CUDA_EXT=1
 export APEX_ALL_CONTRIB_EXT=1
@@ -166,6 +167,7 @@ export MAX_JOBS=${MAX_JOBS}
 export NVCC_APPEND_FLAGS="${NVCC_APPEND_FLAGS:+${NVCC_APPEND_FLAGS} }--threads ${NVCC_THREADS}"
 
 echo "Building wheel (all extensions) ..."
+echo "  TORCH_CUDA_ARCH_LIST=$TORCH_CUDA_ARCH_LIST"
 echo "  APEX_PARALLEL_BUILD=$APEX_PARALLEL_BUILD"
 echo "  MAX_JOBS=$MAX_JOBS"
 echo "  NVCC_APPEND_FLAGS=$NVCC_APPEND_FLAGS"
