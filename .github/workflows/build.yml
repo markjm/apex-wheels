@@ -4,13 +4,32 @@ on:
   workflow_dispatch:
     inputs:
       apex-commit:
-        description: "Apex git commit SHA to build"
-        required: true
+        description: "Apex git ref to build (default: latest master)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
+
+  resolve_ref:
+    name: Resolve Apex ref
+    runs-on: ubuntu-latest
+    outputs:
+      apex-commit: ${{ steps.resolve.outputs.apex-commit }}
+    steps:
+      - name: Resolve
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ref="${{ inputs.apex-commit }}"
+          if [[ -z "$ref" ]]; then
+            ref=$(gh api repos/NVIDIA/apex/commits/master --jq '.sha[:7]')
+            echo "No commit specified — using latest master: $ref"
+          fi
+          echo "apex-commit=$ref" >> "$GITHUB_OUTPUT"
 
   create_matrix:
     name: Create Matrix
@@ -27,6 +46,7 @@ jobs:
 
   create_release:
     name: Create Release
+    needs: [resolve_ref]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +54,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ inputs.apex-commit }}"
+          tag="${{ needs.resolve_ref.outputs.apex-commit }}"
           if gh release view "$tag" &>/dev/null; then
             echo "Release $tag already exists — reusing it"
           else
@@ -48,7 +68,7 @@ jobs:
   # -------------------------------------------------------------------
   build_wheels_linux:
     name: "py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-cu${{ matrix.cuda-version }}"
-    needs: [create_matrix, create_release]
+    needs: [resolve_ref, create_matrix, create_release]
     runs-on: self-hosted
     timeout-minutes: 330
     container:
@@ -73,5 +93,5 @@ jobs:
           torch-version: ${{ matrix.torch-version }}
           cuda-version: ${{ matrix.cuda-version }}
           cuda-arch-list: ${{ matrix.cuda-arch-list }}
-          apex-commit: ${{ inputs.apex-commit }}
-          release-tag: ${{ inputs.apex-commit }}
+          apex-commit: ${{ needs.resolve_ref.outputs.apex-commit }}
+          release-tag: ${{ needs.resolve_ref.outputs.apex-commit }}
