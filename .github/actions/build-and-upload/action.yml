@@ -35,7 +35,7 @@ runs:
       shell: bash
       run: |
         apt-get update
-        apt-get install -y ninja-build clang time patchelf git
+        apt-get install -y ninja-build clang time patchelf git gh
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
@@ -79,9 +79,17 @@ runs:
 
     - name: Upload release asset
       if: ${{ inputs.is-upload == 'true' }}
-      uses: softprops/action-gh-release@v2
-      with:
-        files: ${{ steps.build_wheels.outputs.WHEEL_PATH }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        tag_name=${{ github.ref_name }}
+        wheel_path="${{ steps.build_wheels.outputs.WHEEL_PATH }}"
+        if [ ! -f "$wheel_path" ]; then
+          echo "Error: wheel not found at $wheel_path"
+          exit 1
+        fi
+        gh release upload "$tag_name" "$wheel_path" --clobber
 
     - name: Apply auditwheel repair
       continue-on-error: true
@@ -108,8 +116,16 @@ runs:
         fi
 
     - name: Upload manylinux wheel
-      if: ${{ inputs.is-upload == 'true' && steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX != '' }}
+      if: ${{ inputs.is-upload == 'true' }}
       continue-on-error: true
-      uses: softprops/action-gh-release@v2
-      with:
-        files: ${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        tag_name=${{ github.ref_name }}
+        ml_wheel="${{ steps.auditwheel_repair.outputs.WHEEL_PATH_MANYLINUX }}"
+        if [ -n "$ml_wheel" ] && [ -f "$ml_wheel" ]; then
+          gh release upload "$tag_name" "$ml_wheel" --clobber
+        else
+          echo "Skipping manylinux upload: file not found"
+        fi
